@@ -20,6 +20,7 @@ function OperationProto(operation, data) {
     const {config} = CloudCmd;
     const {Dialog, Images} = DOM;
     const initOperations = wraptile(_initOperations);
+    const authCheck = wraptile(_authCheck);
     
     let Loaded;
     
@@ -67,59 +68,61 @@ function OperationProto(operation, data) {
         ]);
     }
     
-    function authCheck(spawn, ok) {
+    function _authCheck(spawn, ok) {
+        const accept = wraptile(ok);
+        const alertDialog = wraptile(Dialog.alert);
+        
         if (!config('auth'))
-            return ok();
+            return ok(spawn);
         
-        spawn.on('accept', ok);
-        spawn.on('reject', () => {
-            Dialog.alert(TITLE, 'Wrong credentials!');
-        });
-        
+        spawn.on('accept', accept(spawn));
+        spawn.on('reject', alertDialog (TITLE, 'Wrong credentials!'));
         spawn.emit('auth', config('username'), config('password'));
     }
     
     function _initOperations(prefix, fn) {
         fileop(prefix + '/fileop', prefix, (operator) => {
             fn();
-            operator.on('connect', () => {
-                authCheck(operator, () => {
-                    packTarFn = (data, callback) => {
-                        setListeners(operator, {noContinue: true}, callback);
-                        operator.operate('tar', data.from, data.to, data.names);
-                    };
-                    
-                    packZipFn = (data, callback) => {
-                        setListeners(operator, {noContinue: true}, callback);
-                        operator.operate('zip', data.from, data.to, data.names);
-                    };
-                    
-                    deleteFn = (from, files, callback) => {
-                        setListeners(operator, callback);
-                        from = from.replace(/\?.*/, '');
-                        operator.operate('remove', from, files);
-                    };
-                    
-                    copyFn = (data, callback) => {
-                        setListeners(operator, callback);
-                        operator.operate('copy', data.from, data.to, data.names);
-                    };
-                    
-                    extractFn = (data, callback) => {
-                        setListeners(operator, {noContinue: true}, callback);
-                        operator.operate('extract', data.from, data.to);
-                    };
-                });
-            });
             
-            operator.on('disconnect', () => {
-                packZipFn = RESTful.pack;
-                packTarFn = RESTful.pack;
-                deleteFn = RESTful.delete;
-                copyFn = RESTful.cp;
-                extractFn = RESTful.extract;
-            });
+            operator.on('connect', authCheck(operator, onConnect));
+            operator.on('disconnect', onDisconnect);
         });
+    }
+    
+    function onConnect(operator) {
+        packTarFn = (data, callback) => {
+            setListeners(operator, {noContinue: true}, callback);
+            operator.operate('tar', data.from, data.to, data.names);
+        };
+        
+        packZipFn = (data, callback) => {
+            setListeners(operator, {noContinue: true}, callback);
+            operator.operate('zip', data.from, data.to, data.names);
+        };
+        
+        deleteFn = (from, files, callback) => {
+            setListeners(operator, callback);
+            from = from.replace(/\?.*/, '');
+            operator.operate('remove', from, files);
+        };
+        
+        copyFn = (data, callback) => {
+            setListeners(operator, callback);
+            operator.operate('copy', data.from, data.to, data.names);
+        };
+        
+        extractFn = (data, callback) => {
+            setListeners(operator, {noContinue: true}, callback);
+            operator.operate('extract', data.from, data.to);
+        };
+    };
+    
+    function onDisconnect() {
+        packZipFn = RESTful.pack;
+        packTarFn = RESTful.pack;
+        deleteFn = RESTful.delete;
+        copyFn = RESTful.cp;
+        extractFn = RESTful.extract;
     }
     
     function getPacker(type) {
@@ -190,31 +193,23 @@ function OperationProto(operation, data) {
         if (!Loaded)
             return;
         
-        switch(operation) {
-        case 'copy':
-            Operation.copy(data);
-            break;
+        if (operation === 'copy')
+            return Operation.copy(data);
         
-        case 'move':
-            Operation.move(data);
-            break;
+        if (operation === 'move')
+            return Operation.move(data);
         
-        case 'delete':
-            Operation.delete();
-            break;
+        if (operation === 'delete')
+            return Operation.delete();
         
-        case 'delete:silent':
-            Operation.deleteSilent();
-            break;
+        if (operation === 'delete:silent')
+            return Operation.deleteSilent();
         
-        case 'pack':
-            Operation.pack();
-            break;
+        if (operation === 'pack')
+            return Operation.pack();
         
-        case 'extract':
-            Operation.extract();
-            break;
-        }
+        if (operation === 'extract')
+            return Operation.extract();
     };
     
     this.copy = processFiles({
