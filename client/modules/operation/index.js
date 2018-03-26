@@ -19,7 +19,7 @@ function OperationProto(operation, data) {
     const TITLE = CloudCmd.TITLE;
     const {config} = CloudCmd;
     const {Dialog, Images} = DOM;
-    const create = wraptile(_create);
+    const initOperations = wraptile(_initOperations);
     
     let Loaded;
     
@@ -57,7 +57,7 @@ function OperationProto(operation, data) {
                 if (!config('progress'))
                     return callback();
                 
-                load(create(CloudCmd.PREFIX, callback));
+                load(initOperations(CloudCmd.PREFIX, callback));
             },
             () => {
                 Loaded = true;
@@ -79,83 +79,47 @@ function OperationProto(operation, data) {
         spawn.emit('auth', config('username'), config('password'));
     }
     
-    function _initSpero(prefix, fn) {
-        fileop(prefix + '/fileop', prefix, (copier) => {
+    function _initOperations(prefix, fn) {
+        fileop(prefix + '/fileop', prefix, (operator) => {
             fn();
-            
-            copier.on('connect', () => {
-                authCheck(copier, () => {
-                    copyFn = (data, callback) => {
-                        setListeners(copier, callback);
-                        copier.operate('copy', data.from, data.to, data.names);
-                    };
-                });
-            });
-            
-            copier.on('disconnect', () => {
-                copyFn = RESTful.cp;
-            });
-        });
-    }
-    
-    function _initRemedy(prefix, fn) {
-        fileop(prefix + '/fileop', prefix, (remover) => {
-            fn();
-            remover.on('connect', () => {
-                authCheck(remover, () => {
-                    deleteFn = (from, files, callback) => {
-                        setListeners(remover, callback);
-                        from = from.replace(/\?.*/, '');
-                        remover.operate('remove', from, files);
-                    };
-                });
-            });
-            
-            remover.on('disconnect', () => {
-                deleteFn = RESTful.delete;
-            });
-        });
-    }
-    
-    function _setZipPacker(prefix, type, fn) {
-        fileop(prefix + '/fileop', prefix, (packer) => {
-            fn();
-            packer.on('connect', () => {
-                authCheck(packer, () => {
-                    packZipFn = (data, callback) => {
-                        setListeners(packer, {noContinue: true}, callback);
-                        packer.operate(type, data.from, data.to, data.names);
-                    };
-                });
-            });
-            
-            packer.on('disconnect', () => {
-                packZipFn = RESTful.pack;
-            });
-        });
-    }
-
-    function _setTarPacker(prefix, type, fn) {
-        fileop(prefix + '/fileop', prefix, (packer) => {
-            fn();
-            packer.on('connect', () => {
-                authCheck(packer, () => {
+            operator.on('connect', () => {
+                authCheck(operator, () => {
                     packTarFn = (data, callback) => {
-                        setListeners(packer, {noContinue: true}, callback);
-                        packer.operate(type, data.from, data.to, data.names);
+                        setListeners(operator, {noContinue: true}, callback);
+                        operator.operate('tar', data.from, data.to, data.names);
+                    };
+                    
+                    packZipFn = (data, callback) => {
+                        setListeners(operator, {noContinue: true}, callback);
+                        operator.operate('zip', data.from, data.to, data.names);
+                    };
+                    
+                    deleteFn = (from, files, callback) => {
+                        setListeners(operator, callback);
+                        from = from.replace(/\?.*/, '');
+                        operator.operate('remove', from, files);
+                    };
+                    
+                    copyFn = (data, callback) => {
+                        setListeners(operator, callback);
+                        operator.operate('copy', data.from, data.to, data.names);
+                    };
+                    
+                    extractFn = (data, callback) => {
+                        setListeners(operator, {noContinue: true}, callback);
+                        operator.operate('extract', data.from, data.to);
                     };
                 });
             });
             
-            packer.on('disconnect', () => {
+            operator.on('disconnect', () => {
                 packZipFn = RESTful.pack;
+                packTarFn = RESTful.pack;
+                deleteFn = RESTful.delete;
+                copyFn = RESTful.cp;
+                extractFn = RESTful.extract;
             });
         });
-    }
-    
-    function _initPacker(prefix, fn) {
-        _setZipPacker(prefix, 'zip', fn);
-        _setTarPacker(prefix, 'tar', fn);
     }
     
     function getPacker(type) {
@@ -163,38 +127,6 @@ function OperationProto(operation, data) {
             return packZipFn;
         
         return packTarFn;
-    }
-    
-    function _initExtractor(prefix, fn) {
-        fileop(prefix + '/fileop', prefix, (packer) => {
-            fn();
-            packer.on('connect', () => {
-                authCheck(packer, () => {
-                    extractFn = (data, callback) => {
-                        setListeners(packer, {noContinue: true}, callback);
-                        packer.operate('extract', data.from, data.to);
-                    };
-                });
-            });
-            
-            packer.on('disconnect', () => {
-                extractFn = RESTful.extract;
-            });
-        });
-    }
-    
-    function _create(prefix, callback) {
-        const initSpero = currify(_initSpero);
-        const initRemedy = currify(_initRemedy);
-        const initPacker = currify(_initPacker);
-        const initExtractor = currify(_initExtractor);
-        
-        exec.parallel([
-            initSpero(prefix),
-            initRemedy(prefix),
-            initPacker(prefix),
-            initExtractor(prefix)
-        ], callback);
     }
     
     function setListeners(emitter, options, callback) {
