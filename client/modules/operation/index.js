@@ -1,11 +1,7 @@
 /* global CloudCmd */
 /* global Util */
 /* global DOM */
-/* global spero */
-/* global remedy */
-/* global ishtar */
-/* global salam */
-/* global omnes */
+/* global fileop */
 
 'use strict';
 
@@ -84,14 +80,14 @@ function OperationProto(operation, data) {
     }
     
     function _initSpero(prefix, fn) {
-        spero(prefix + '/spero', prefix, (copier) => {
+        fileop(prefix + '/fileop', prefix, (copier) => {
             fn();
             
             copier.on('connect', () => {
                 authCheck(copier, () => {
                     copyFn = (data, callback) => {
                         setListeners(copier, callback);
-                        copier.copy(data.from, data.to, data.names);
+                        copier.operate('copy', data.from, data.to, data.names);
                     };
                 });
             });
@@ -103,14 +99,14 @@ function OperationProto(operation, data) {
     }
     
     function _initRemedy(prefix, fn) {
-        remedy(prefix + '/remedy', prefix, (remover) => {
+        fileop(prefix + '/fileop', prefix, (remover) => {
             fn();
             remover.on('connect', () => {
                 authCheck(remover, () => {
                     deleteFn = (from, files, callback) => {
                         setListeners(remover, callback);
                         from = from.replace(/\?.*/, '');
-                        remover.remove(from, files);
+                        remover.operate('remove', from, files);
                     };
                 });
             });
@@ -121,32 +117,32 @@ function OperationProto(operation, data) {
         });
     }
     
-    function _setTarPacker(prefix, name, pack, fn) {
-        pack(prefix + '/' + name, prefix, (packer) => {
-            fn();
-            packer.on('connect', () => {
-                authCheck(packer, () => {
-                    packTarFn = (data, callback) => {
-                        setListeners(packer, {noContinue: true}, callback);
-                        packer.pack(data.from, data.to, data.names);
-                    };
-                });
-            });
-            
-            packer.on('disconnect', () => {
-                packTarFn = RESTful.pack;
-            });
-        });
-    }
-    
-    function _setZipPacker(prefix, name, pack, fn) {
-        pack(prefix + '/' + name, prefix, (packer) => {
+    function _setZipPacker(prefix, type, fn) {
+        fileop(prefix + '/fileop', prefix, (packer) => {
             fn();
             packer.on('connect', () => {
                 authCheck(packer, () => {
                     packZipFn = (data, callback) => {
                         setListeners(packer, {noContinue: true}, callback);
-                        packer.pack(data.from, data.to, data.names);
+                        packer.operate(type, data.from, data.to, data.names);
+                    };
+                });
+            });
+            
+            packer.on('disconnect', () => {
+                packZipFn = RESTful.pack;
+            });
+        });
+    }
+
+    function _setTarPacker(prefix, type, fn) {
+        fileop(prefix + '/fileop', prefix, (packer) => {
+            fn();
+            packer.on('connect', () => {
+                authCheck(packer, () => {
+                    packTarFn = (data, callback) => {
+                        setListeners(packer, {noContinue: true}, callback);
+                        packer.operate(type, data.from, data.to, data.names);
                     };
                 });
             });
@@ -158,8 +154,8 @@ function OperationProto(operation, data) {
     }
     
     function _initPacker(prefix, fn) {
-        _setZipPacker(prefix, 'salam', salam, fn);
-        _setTarPacker(prefix, 'ishtar', ishtar, fn);
+        _setZipPacker(prefix, 'zip', fn);
+        _setTarPacker(prefix, 'tar', fn);
     }
     
     function getPacker(type) {
@@ -170,13 +166,13 @@ function OperationProto(operation, data) {
     }
     
     function _initExtractor(prefix, fn) {
-        omnes(prefix + '/omnes', prefix, (packer) => {
+        fileop(prefix + '/fileop', prefix, (packer) => {
             fn();
             packer.on('connect', () => {
                 authCheck(packer, () => {
                     extractFn = (data, callback) => {
                         setListeners(packer, {noContinue: true}, callback);
-                        packer.extract(data.from, data.to);
+                        packer.operate('extract', data.from, data.to);
                     };
                 });
             });
@@ -568,17 +564,9 @@ function OperationProto(operation, data) {
     
     function load(callback) {
         const prefix = CloudCmd.PREFIX;
-        const files = [
-            '/spero/spero.js',
-            '/remedy/remedy.js',
-            '/ishtar/ishtar.js',
-            '/salam/salam.js',
-            '/omnes/omnes.js'
-        ].map((name) => {
-            return prefix + name;
-        });
+        const file = `${prefix}/fileop/fileop.js`;
         
-        DOM.load.parallel(files, (error) => {
+        DOM.load.js(file, (error) => {
             if (error) {
                 Dialog.alert(TITLE, error.message);
                 return exec(callback);

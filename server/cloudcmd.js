@@ -25,11 +25,7 @@ const edward = require('edward');
 const dword = require('dword');
 const deepword = require('deepword');
 const nomine = require('nomine');
-const spero = require('spero');
-const remedy = require('remedy');
-const ishtar = require('ishtar');
-const salam = require('salam');
-const omnes = require('omnes');
+const fileop = require('fileop');
 
 const authenticate = currify(_authenticate);
 const setUrl = currify(_setUrl);
@@ -132,34 +128,10 @@ function listen(prefix, socket) {
         prefix: prefix + '/deepword',
     });
     
-    spero.listen(socket, {
+    fileop.listen(socket, {
         root,
         authCheck,
-        prefix: prefix + '/spero',
-    });
-    
-    remedy.listen(socket, {
-        root,
-        authCheck,
-        prefix: prefix + '/remedy',
-    });
-    
-    ishtar.listen(socket, {
-        root,
-        authCheck,
-        prefix: prefix + '/ishtar',
-    });
-    
-    salam.listen(socket, {
-        root,
-        authCheck,
-        prefix: prefix + '/salam',
-    });
-    
-    omnes.listen(socket, {
-        root,
-        authCheck,
-        prefix: prefix + '/omnes',
+        prefix: prefix + '/fileop',
     });
     
     config('console') && konsole.listen(socket, {
@@ -213,26 +185,8 @@ function cloudcmd(prefix, plugins, modules) {
             zip,
         }),
         
-        spero({
-            prefix  : prefix + '/spero',
-            online,
-        }),
-        
-        remedy({
-            prefix  : prefix + '/remedy',
-        }),
-        
-        ishtar({
-            prefix  : prefix + '/ishtar',
-            online,
-        }),
-        
-        salam({
-            prefix: prefix + '/salam',
-        }),
-        
-        omnes({
-            prefix: prefix + '/omnes',
+        fileop({
+            prefix  : prefix + '/fileop',
         }),
         
         nomine({
